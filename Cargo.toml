@@ -1,0 +1,16 @@
+[package]
+name = "aeron-client-rs"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "publisher"
+
+[[example]]
+name = "subscriber"
+
+[dependencies]
+anyhow = "1.0.75"
+agrona-rs = {"path" = "../agrona-rs"}
+libaeron-sys = {"path" = "/Users/m4ce/Workspace/m4ce/GitHub/libaeron-sys/libaeron-sys"}
+libaeron_driver-sys = {"path" = "/Users/m4ce/Workspace/m4ce/GitHub/libaeron-sys/libaeron_driver-sys"}

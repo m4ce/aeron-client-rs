@@ -3,7 +3,7 @@ use core::slice;
 use std::collections::HashMap;
 use std::ffi::{CStr};
 use std::marker::PhantomData;
-use std::ptr::{null_mut};
+use std::ptr::{null, null_mut};
 
 pub trait ErrorHandler {
     fn on_error(&self, code: i32, msg: &CStr);
@@ -58,16 +58,34 @@ impl FragmentProcessor for FragmentAssemblerProcessor {
     }
 }
 
-unsafe extern "C" fn on_available_image_handler<T: OnAvailableImage>(clientd: *mut std::os::raw::c_void, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t,) {
+unsafe extern "C" fn on_unavailable_image_handler<T: OnUnavailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     // trampoline
     let handler = clientd as *mut T;
-    // (*handler).handle(AeronImage { handle: image});
+    (*handler).handle(registration_id, AeronImage::wrap(image));
+}
+
+unsafe extern "C" fn on_available_image_handler<T: OnAvailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
+    // trampoline
+    let handler = clientd as *mut T;
+    (*handler).handle(registration_id, AeronImage::wrap(image));
 }
 
 unsafe extern "C" fn error_handler<T: ErrorHandler>(clientd: *mut ::std::os::raw::c_void, errcode: std::os::raw::c_int, message: *const ::std::os::raw::c_char) {
     // trampoline
     let handler = clientd as *mut T;
     (*handler).on_error(errcode, CStr::from_ptr(message));
+}
+
+unsafe extern "C" fn on_new_subscription_handler<T: OnNewSubscription>(clientd: *mut std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_subscription_t, channel: *const std::os::raw::c_char, stream_id: i32, correlation_id: i64) {
+    // trampoline
+    let handler = clientd as *mut T;
+    (*handler).handle(CStr::from_ptr(channel), stream_id, correlation_id);
+}
+
+unsafe extern "C" fn on_new_publication_handler<T: OnNewPublication>(clientd: *mut ::std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_publication_t, channel: *const ::std::os::raw::c_char, stream_id: i32, session_id: i32, correlation_id: i64) {
+    // trampoline
+    let handler = clientd as *mut T;
+    (*handler).handle(CStr::from_ptr(channel), stream_id, session_id, correlation_id);
 }
 
 unsafe extern "C" fn fragment_handler<T: FragmentHandler>(
@@ -136,11 +154,11 @@ pub trait OnNewPublication {
     fn handle(&self, channel: &CStr, stream_id: i32, session_id: i32, correlation_id: i64);
 }
 
-pub trait OnAvailableImage {
+pub trait OnAvailableImageHandler {
     fn handle(&self, registration_id: i64, image: AeronImage);
 }
 
-pub trait OnUnAvailableImage {
+pub trait OnUnavailableImageHandler {
     fn handle(&self, registration_id: i64, image: AeronImage);
 }
 
@@ -151,6 +169,30 @@ pub struct AeronImage {
 impl AeronImage {
     fn wrap(handle: *mut libaeron_sys::aeron_image_t) -> Self {
         Self { handle }
+    }
+
+    pub fn session_id(&self) -> i32 {
+        unsafe {
+            libaeron_sys::aeron_image_session_id(self.handle)
+        }
+    }
+
+    pub fn is_eof(&self) -> bool {
+        unsafe {
+            libaeron_sys::aeron_image_is_end_of_stream(self.handle)
+        }
+    }
+
+    pub fn eof_position(&self) -> i64 {
+        unsafe {
+            libaeron_sys::aeron_image_end_of_stream_position(self.handle)
+        }
+    }
+
+    pub fn is_closed(&self) -> bool {
+        unsafe {
+            libaeron_sys::aeron_image_is_closed(self.handle)
+        }
     }
 }
 
@@ -213,13 +255,12 @@ impl Drop for BufferClaim {
     }
 }
 
-pub struct Context<E> {
+pub struct Context {
     context: *mut libaeron_sys::aeron_context_t,
-    directory: String,
-    error_handler_ptr: *mut E
+    directory: String
 }
 
-impl <E> Context<E> {
+impl Context {
     #[cfg(target_os = "linux")]
     pub const DEFAULT_AERON_DIRECTORY: &'static str = "/dev/shm/aeron";
     #[cfg(target_os = "macos")]
@@ -228,8 +269,7 @@ impl <E> Context<E> {
     pub fn new() -> anyhow::Result<Self> {
         let mut context = Self {
             context: null_mut(),
-            directory: "".into(),
-            error_handler_ptr: null_mut()
+            directory: "".into()
         };
         unsafe {
             if libaeron_sys::aeron_context_init(&mut context.context) < 0 {
@@ -239,7 +279,7 @@ impl <E> Context<E> {
                 ));
             }
         }
-        context.set_dir(Context::<E>::DEFAULT_AERON_DIRECTORY.into());
+        context.set_dir(Context::DEFAULT_AERON_DIRECTORY.into());
         Ok(context)
     }
 
@@ -269,13 +309,12 @@ impl <E> Context<E> {
         }
     }
 
-    pub fn set_error_handler(&mut self, handler: Box<E>) -> anyhow::Result<()> where E: ErrorHandler {
-        self.error_handler_ptr = Box::into_raw(handler);
+    pub fn set_error_handler<T>(&mut self, mut handler: &T) -> anyhow::Result<()> where T: ErrorHandler {
         unsafe {
             if libaeron_sys::aeron_context_set_error_handler(
                 self.context,
-                Some(error_handler::<E>),
-                self.error_handler_ptr as *mut std::os::raw::c_void
+                Some(error_handler::<T>),
+                &mut handler as *mut _ as *mut std::os::raw::c_void
             ) < 0
             {
                 bail!(format!(
@@ -287,57 +326,48 @@ impl <E> Context<E> {
         }
     }
 
-    // pub fn set_new_subscription_handler(
-    //     &self,
-    //     handler: &dyn OnNewSubscription,
-    // ) -> anyhow::Result<()> {
-    //     unsafe {
-    //         if libaeron_sys::aeron_context_set_on_new_subscription(
-    //             self.context,
-    //             Some(|_, _, channel, stream_id, correlation_id| {
-    //                 handler.handle(CStr::from_ptr(channel), stream_id, correlation_id);
-    //             }),
-    //             null_mut(),
-    //         ) < 0
-    //         {
-    //             bail!(format!(
-    //                 "aeron_context_set_on_new_subscription: {:?}",
-    //                 CStr::from_ptr(libaeron_sys::aeron_errmsg())
-    //             ));
-    //         }
-    //         Ok(())
-    //     }
-    // }
-    //
-    // pub fn set_new_publication_handler(
-    //     &self,
-    //     handler: &dyn OnNewPublication,
-    // ) -> anyhow::Result<()> {
-    //     unsafe {
-    //         if libaeron_sys::aeron_context_set_on_new_publication(
-    //             self.context,
-    //             Some(|_, _, channel, stream_id, session_id, correlation_id| {
-    //                 handler.handle(
-    //                     CStr::from_ptr(channel),
-    //                     stream_id,
-    //                     session_id,
-    //                     correlation_id,
-    //                 );
-    //             }),
-    //             null_mut(),
-    //         ) < 0
-    //         {
-    //             bail!(format!(
-    //                 "aeron_context_set_on_new_publication: {:?}",
-    //                 CStr::from_ptr(libaeron_sys::aeron_errmsg())
-    //             ));
-    //         }
-    //         Ok(())
-    //     }
-    // }
+    pub fn set_new_subscription_handler<T>(
+        &self,
+        mut handler: &T
+    ) -> anyhow::Result<()> where T: OnNewSubscription {
+        unsafe {
+            if libaeron_sys::aeron_context_set_on_new_subscription(
+                self.context,
+                Some(on_new_subscription_handler::<T>),
+                &mut handler as *mut _ as *mut std::os::raw::c_void,
+            ) < 0
+            {
+                bail!(format!(
+                    "aeron_context_set_on_new_subscription: {:?}",
+                    CStr::from_ptr(libaeron_sys::aeron_errmsg())
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    pub fn set_new_publication_handler<T>(
+        &self,
+        mut handler: &T,
+    ) -> anyhow::Result<()> where T: OnNewPublication {
+        unsafe {
+            if libaeron_sys::aeron_context_set_on_new_publication(
+                self.context,
+                Some(on_new_publication_handler::<T>),
+                &mut handler as *mut _ as *mut std::os::raw::c_void,
+            ) < 0
+            {
+                bail!(format!(
+                    "aeron_context_set_on_new_publication: {:?}",
+                    CStr::from_ptr(libaeron_sys::aeron_errmsg())
+                ));
+            }
+            Ok(())
+        }
+    }
 }
 
-impl <E> Drop for Context<E> {
+impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
             libaeron_sys::aeron_context_close(self.context);
@@ -345,14 +375,14 @@ impl <E> Drop for Context<E> {
     }
 }
 
-pub struct Client<'a, E> {
+pub struct Client<'a> {
     handle: *mut libaeron_sys::aeron_t,
-    context: &'a Context<E>,
+    context: &'a Context,
     subscriptions: HashMap<i64, Subscription>,
     publications: HashMap<i64, Publication>,
 }
 
-impl <E> Drop for Client<'_, E> {
+impl Drop for Client<'_> {
     fn drop(&mut self) {
         // release resources
         self.subscriptions.clear();
@@ -680,8 +710,8 @@ impl Drop for Publication {
     }
 }
 
-impl<'a, E> Client<'a, E> {
-    pub fn new(context: &'a Context<E>) -> anyhow::Result<Self> {
+impl<'a> Client<'a> {
+    pub fn new(context: &'a Context) -> anyhow::Result<Self> {
         let mut client = Self {
             handle: null_mut(),
             context,
@@ -786,13 +816,13 @@ impl<'a, E> Client<'a, E> {
         }
     }
 
-    pub fn async_add_subscription<AH: OnAvailableImage, UH: OnUnAvailableImage>(
+    pub fn async_add_subscription<A, U>(
         &mut self,
         channel: String,
         stream_id: i32,
-        mut available_image_handler: AH,
-        mut unavailable_image_handler: UH,
-    ) -> anyhow::Result<i64> {
+        mut available_image_handler: &A,
+        mut unavailable_image_handler: &U,
+    ) -> anyhow::Result<i64> where A: OnAvailableImageHandler, U: OnUnavailableImageHandler {
         let mut async_subscription = Subscription {
             channel,
             async_: null_mut(),
@@ -804,20 +834,10 @@ impl<'a, E> Client<'a, E> {
                 self.handle,
                 async_subscription.channel.as_ptr() as *const std::os::raw::c_char,
                 stream_id,
-                None,
-                null_mut(),
-                // Some(on_available_image_handler::<AH>),
-                // &mut available_image_handler as *mut _ as *mut std::os::raw::c_void,
-                None,
-                // Some(|_, s, i| {
-                //     unavailable_image_handler.handle(
-                //         libaeron_sys::aeron_async_add_subscription_get_registration_id(
-                //             async_subscription.async_,
-                //         ),
-                //         AeronImage { handle: i },
-                //     )
-                // }),
-                null_mut(),
+                Some(on_available_image_handler::<A>),
+                &mut available_image_handler as *mut _ as *mut std::os::raw::c_void,
+                Some(on_unavailable_image_handler::<U>),
+                &mut unavailable_image_handler as *mut _ as *mut std::os::raw::c_void
             ) < 0
             {
                 bail!(format!(
@@ -834,14 +854,14 @@ impl<'a, E> Client<'a, E> {
         }
     }
 
-    pub fn add_subscription<AH: OnAvailableImage, UH: OnUnAvailableImage>(
+    pub fn add_subscription<A: OnAvailableImageHandler, U: OnUnavailableImageHandler>(
         &mut self,
         channel: String,
         stream_id: i32,
-        available_image_handler: AH,
-        unavailable_image_handler: UH,
+        available_image_handler: &A,
+        unavailable_image_handler: &U,
     ) -> anyhow::Result<i64> {
-        let registration_id = self.async_add_subscription::<AH, UH>(
+        let registration_id = self.async_add_subscription::<A, U>(
             channel,
             stream_id,
             available_image_handler,

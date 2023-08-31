@@ -47,33 +47,32 @@ fn main() -> anyhow::Result<()> {
     println!("registration id: {}", registration_id);
     loop {
         client.poll()?;
-        let publication = client.find_exclusive_publication(registration_id).unwrap();
-        if let Ok(value) = publication.poll_ready() {
-            if !value {
-                continue;
-            }
-        }
-        if publication.is_connected() {
-            let foo: Result<(), Error> = match publication.try_claim(size_of::<i64>()) {
-                Ok(mut buffer_claim) => {
-                    buffer_claim.as_mut_slice().copy_from_slice(&i64::to_le_bytes(nanos_since_epoch()));
-                    buffer_claim.commit()?;
-                    sleep(Duration::from_millis(1000));
-                    Ok(())
-                }
-                Err(e) => {
-                    match e {
-                        Error::BackPressured => {
-                            println!("Got back-pressured, retrying ...");
+        match client.find_exclusive_publication(registration_id)? {
+            Some(publication) => {
+                if publication.is_connected() {
+                    let x: Result<(), Error> = match publication.try_claim(size_of::<i64>()) {
+                        Ok(mut buffer_claim) => {
+                            buffer_claim.as_mut_slice().copy_from_slice(&i64::to_le_bytes(nanos_since_epoch()));
+                            buffer_claim.commit()?;
+                            sleep(Duration::from_millis(1000));
                             Ok(())
                         }
-                        _ => {
-                            bail!(e)
+                        Err(e) => {
+                            match e {
+                                Error::BackPressured => {
+                                    println!("Got back-pressured, retrying ...");
+                                    Ok(())
+                                }
+                                _ => {
+                                    bail!(e)
+                                }
+                            }
                         }
-                    }
+                    };
+                    x?
                 }
-            };
-            foo?;
+            }
+            None => continue
         }
     }
     // Ok(())

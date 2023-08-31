@@ -45,6 +45,14 @@ impl Subscription {
         }
     }
 
+    pub fn is_ready(&self) -> bool {
+        !self.ptr.is_null()
+    }
+
+    pub(super) fn mut_ptr(&mut self) -> *mut *mut libaeron_sys::aeron_subscription_t {
+        &mut self.ptr
+    }
+
     pub(super) fn async_mut_ptr(&mut self) -> *mut *mut libaeron_sys::aeron_async_add_subscription_t {
         &mut self.async_ptr
     }
@@ -55,22 +63,6 @@ impl Subscription {
 
     pub fn channel(&self) -> &str {
         self.channel.as_str()
-    }
-
-    pub fn poll_ready(&mut self) -> anyhow::Result<bool> {
-        if !self.ptr.is_null() {
-            return Ok(true);
-        }
-        unsafe {
-            match libaeron_sys::aeron_async_add_subscription_poll(&mut self.ptr, self.async_ptr) {
-                0 => Ok(false),
-                1 => Ok(!self.ptr.is_null()),
-                _ => bail!(format!(
-                    "aeron_async_add_subscription_poll: {:?}",
-                    CStr::from_ptr(libaeron_sys::aeron_errmsg())
-                )),
-            }
-        }
     }
 
     pub fn channel_status(&self) -> i64 {

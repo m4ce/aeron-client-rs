@@ -83,13 +83,10 @@ fn main() -> anyhow::Result<()> {
     // let processor = DefaultFragmentProcessor::new(&fragment_handler);
     loop {
         client.poll()?;
-        let subscription = client.find_subscription(registration_id).unwrap();
-        if let Ok(value) = subscription.poll_ready() {
-            if !value {
-                continue;
-            }
-        }
-        subscription.poll(&assembler.processor(), 10)?;
+        match client.find_subscription(registration_id)? {
+            Some(subscription) => subscription.poll(&assembler.processor(), 10)?,
+            None => continue
+        };
     }
     // sleep(Duration::from_secs(10));
     Ok(())

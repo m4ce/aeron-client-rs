@@ -1,5 +1,4 @@
 extern crate core;
-extern crate core;
 
 pub mod client;
 pub mod buffer_claim;

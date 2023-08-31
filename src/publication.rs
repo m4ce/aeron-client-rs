@@ -1,3 +1,4 @@
+use core::slice;
 use std::ffi::CStr;
 use std::ptr::null_mut;
 use anyhow::bail;
@@ -20,6 +21,23 @@ pub enum Error {
     MaxPositionExceeded,
     #[error("The Publication has been closed and should no longer be used.")]
     Closed
+}
+
+pub trait ReservedValueSupplier {
+    fn apply(&mut self, buffer: &[u8]) -> i64;
+}
+
+pub(super) unsafe extern "C" fn reserved_value_supplier_trampoline<T: ReservedValueSupplier>(clientd: *mut std::os::raw::c_void, buffer: *mut u8, frame_length: usize) -> i64 {
+    let handler = clientd as *mut T;
+    (*handler).apply(slice::from_raw_parts(buffer, frame_length))
+}
+
+pub struct DefaultReservedValueSupplier {}
+
+impl ReservedValueSupplier for DefaultReservedValueSupplier {
+    fn apply(&mut self, _buffer: &[u8]) -> i64 {
+        0
+    }
 }
 
 struct PublicationAsyncDestination {}
@@ -100,14 +118,14 @@ impl Publication {
         unsafe { libaeron_sys::aeron_publication_session_id(self.ptr) }
     }
 
-    pub fn offer(&self, data: &[u8]) -> Result<(), Error> {
+    pub fn offer<T>(&self, data: &[u8], mut reserved_value_supplier: &T) -> Result<(), Error> where T: ReservedValueSupplier {
         unsafe {
             let pos = libaeron_sys::aeron_publication_offer(
                 self.ptr,
                 data.as_ptr(),
                 data.len(),
-                None,
-                null_mut(),
+                Some(reserved_value_supplier_trampoline::<T>),
+                &mut reserved_value_supplier as *mut _ as *mut std::os::raw::c_void
             );
             if pos >= 0 {
                 Ok(())

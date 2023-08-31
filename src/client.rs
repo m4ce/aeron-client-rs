@@ -8,14 +8,12 @@ use crate::image::Image;
 use crate::publication::Publication;
 use crate::subscription::Subscription;
 
-unsafe extern "C" fn on_unavailable_image_handler<T: OnUnavailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
-    // trampoline
+unsafe extern "C" fn on_unavailable_image_handler_trampoline<T: OnUnavailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     let handler = clientd as *mut T;
     (*handler).handle(registration_id, Image::new(image, null_mut()));
 }
 
-unsafe extern "C" fn on_available_image_handler<T: OnAvailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
-    // trampoline
+unsafe extern "C" fn on_available_image_handler_trampoline<T: OnAvailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     let handler = clientd as *mut T;
     (*handler).handle(registration_id, Image::new(image, null_mut()));
 }
@@ -220,9 +218,9 @@ impl<'a> Client<'a> {
                 self.ptr,
                 async_subscription.channel().as_ptr() as *const std::os::raw::c_char,
                 stream_id,
-                Some(on_available_image_handler::<A>),
+                Some(on_available_image_handler_trampoline::<A>),
                 &mut available_image_handler as *mut _ as *mut std::os::raw::c_void,
-                Some(on_unavailable_image_handler::<U>),
+                Some(on_unavailable_image_handler_trampoline::<U>),
                 &mut unavailable_image_handler as *mut _ as *mut std::os::raw::c_void
             ) < 0
             {

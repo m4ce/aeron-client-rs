@@ -3,7 +3,7 @@ use anyhow::bail;
 use std::ffi::{CStr};
 use crate::buffer_claim::BufferClaim;
 use crate::destination::{Destination, DestinationReadiness};
-use crate::publication::Error;
+use crate::publication::{Error, reserved_value_supplier_trampoline, ReservedValueSupplier};
 use crate::publication::Error::{AdminAction, BackPressured, Closed, GenericError, MaxPositionExceeded, NotConnected};
 
 struct ExclusivePublicationAsyncDestination {}
@@ -84,14 +84,14 @@ impl ExclusivePublication {
         unsafe { libaeron_sys::aeron_exclusive_publication_session_id(self.ptr) }
     }
 
-    pub fn offer(&self, data: &[u8]) -> Result<(), Error> {
+    pub fn offer<T>(&self, data: &[u8], mut reserved_value_supplier: &T) -> Result<(), Error> where T: ReservedValueSupplier {
         unsafe {
             let pos = libaeron_sys::aeron_exclusive_publication_offer(
                 self.ptr,
                 data.as_ptr(),
                 data.len(),
-                None,
-                null_mut(),
+                Some(reserved_value_supplier_trampoline::<T>),
+                &mut reserved_value_supplier as *mut _ as *mut std::os::raw::c_void
             );
             if pos >= 0 {
                 Ok(())

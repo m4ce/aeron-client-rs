@@ -1,36 +1,42 @@
-use std::ffi::CStr;
-use std::io;
-use std::io::Write;
 use aeron_client_rs::client::{Client, OnAvailableImageHandler, OnUnavailableImageHandler};
 use aeron_client_rs::context::{Context, ErrorHandler, OnNewSubscriptionHandler};
 use aeron_client_rs::fragment_assembler::FragmentAssembler;
 use aeron_client_rs::fragment_processor::FragmentHandler;
 use aeron_client_rs::image::Image;
+use std::ffi::CStr;
 
-pub struct DefaultOnAvailableImageHandler {
-}
+pub struct DefaultOnAvailableImageHandler {}
 
 impl OnAvailableImageHandler for DefaultOnAvailableImageHandler {
     fn handle(&self, registration_id: i64, image: Image) {
-        println!("Image has become available [sessionId={}]", image.session_id());
+        println!(
+            "Image has become available [sessionId={}]",
+            image.session_id()
+        );
     }
 }
 
-pub struct DefaultOnUnAvailableImageHandler {
-}
+pub struct DefaultOnUnAvailableImageHandler {}
 
 impl OnUnavailableImageHandler for DefaultOnUnAvailableImageHandler {
     fn handle(&self, registration_id: i64, image: Image) {
-        println!("Image has become unavailable [sessionId={}]", image.session_id());
+        println!(
+            "Image has become unavailable [sessionId={}]",
+            image.session_id()
+        );
     }
 }
 
-pub struct DefaultFragmentHandler {
-}
+pub struct DefaultFragmentHandler {}
 
 impl FragmentHandler for DefaultFragmentHandler {
-    fn on_fragment(&mut self, data: &[u8], _header: &libaeron_sys::aeron_header_t) {
-        println!("Received fragment: [value={}, len={}]", i64::from_le_bytes(data[0..8].try_into().unwrap()), data.len());
+    fn on_fragment(&mut self, data: &[u8], header: &libaeron_sys::aeron_header_values_t) {
+        println!(
+            "Received fragment: [value={}, len={}, sessionId={}]",
+            i64::from_le_bytes(data[0..8].try_into().unwrap()),
+            data.len(),
+            header.frame.session_id
+        );
     }
 }
 
@@ -42,19 +48,20 @@ impl ErrorHandler for DefaultErrorHandler {
     }
 }
 
-pub struct DefaultOnNewSubscriptionHandler {
-}
+pub struct DefaultOnNewSubscriptionHandler {}
 
 impl OnNewSubscriptionHandler for DefaultOnNewSubscriptionHandler {
     fn handle(&self, channel: &CStr, stream_id: i32, correlation_id: i64) {
-        println!("Registered new subscription on channel={:?}, streamId={}, correlationId={}", channel, stream_id, correlation_id);
-        io::stdout().flush();
+        println!(
+            "Registered new subscription on channel={:?}, streamId={}, correlationId={}",
+            channel, stream_id, correlation_id
+        );
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    let error_handler = DefaultErrorHandler{};
-    let on_new_subscription_handler = DefaultOnNewSubscriptionHandler{};
+    let error_handler = DefaultErrorHandler {};
+    let on_new_subscription_handler = DefaultOnNewSubscriptionHandler {};
     let mut context = Context::new()?;
     context.set_dir("/Volumes/DevShm/aeron".into())?;
     context.set_use_conductor_agent_invoker(true)?;
@@ -64,9 +71,14 @@ fn main() -> anyhow::Result<()> {
     println!("client id: {}", client.client_id());
     let on_available_image_handler = DefaultOnAvailableImageHandler {};
     let on_unavailable_image_handler = DefaultOnUnAvailableImageHandler {};
-    let registration_id = client.async_add_subscription("aeron:ipc".into(), 1, &on_available_image_handler, &on_unavailable_image_handler)?;
+    let registration_id = client.async_add_subscription(
+        "aeron:ipc".into(),
+        1,
+        &on_available_image_handler,
+        &on_unavailable_image_handler,
+    )?;
     println!("registration id: {}", registration_id);
-    let fragment_handler = DefaultFragmentHandler{};
+    let fragment_handler = DefaultFragmentHandler {};
     let assembler = FragmentAssembler::new(&fragment_handler)?;
     // let processor = DefaultFragmentProcessor::new(&fragment_handler);
     loop {

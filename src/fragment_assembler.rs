@@ -1,11 +1,11 @@
 use std::ffi::CStr;
 use std::ptr::null_mut;
 use anyhow::bail;
-use crate::fragment_processor::{fragment_handler, FragmentHandler, FragmentProcessor};
+use crate::fragment_processor::{fragment_handler_trampoline, FragmentHandler, FragmentProcessor};
 
-unsafe extern "C" fn fragment_assembler_handler(clientd: *mut std::os::raw::c_void, buffer: *const u8, length: usize, header: *mut libaeron_sys::aeron_header_t) {
-    libaeron_sys::aeron_fragment_assembler_handler(clientd, buffer, length, header);
-}
+// unsafe extern "C" fn fragment_assembler_handler_trampoline(clientd: *mut std::os::raw::c_void, buffer: *const u8, length: usize, header: *mut libaeron_sys::aeron_header_t) {
+//     libaeron_sys::aeron_fragment_assembler_handler(clientd, buffer, length, header);
+// }
 
 pub struct FragmentAssemblerProcessor {
     inner: libaeron_sys::aeron_fragment_handler_t,
@@ -36,7 +36,7 @@ impl FragmentAssembler {
         unsafe {
             if libaeron_sys::aeron_fragment_assembler_create(
                 &mut instance.inner,
-                Some(fragment_handler::<T>),
+                Some(fragment_handler_trampoline::<T>),
                 &mut handler as *mut _ as *mut std::os::raw::c_void
             ) < 0
             {
@@ -52,7 +52,7 @@ impl FragmentAssembler {
     pub fn processor(&self) -> FragmentAssemblerProcessor {
         FragmentAssemblerProcessor {
             clientd: self.inner,
-            inner: Some(fragment_assembler_handler)
+            inner: Some(libaeron_sys::aeron_fragment_assembler_handler)
         }
     }
 }

@@ -5,7 +5,7 @@ use crate::destination::{Destination, DestinationReadiness};
 use crate::fragment_processor::FragmentProcessor;
 use crate::image::Image;
 
-unsafe extern "C" fn image_handler<T: Fn(&Image)>(image: *mut libaeron_sys::aeron_image_t, clientd: *mut std::os::raw::c_void) {
+unsafe extern "C" fn image_handler_trampoline<T: Fn(&Image)>(image: *mut libaeron_sys::aeron_image_t, clientd: *mut std::os::raw::c_void) {
     // trampoline
     let handler = clientd as *mut T;
     (*handler)(&Image::new(image, null_mut()));
@@ -153,7 +153,7 @@ impl Subscription {
     pub fn for_each_image<T>(&self, mut handler: &T) where T: Fn(&Image) {
         unsafe {
             libaeron_sys::aeron_subscription_for_each_image(self.ptr,
-                                                            Some(image_handler::<T>),
+                                                            Some(image_handler_trampoline::<T>),
                                                             &mut handler as *mut _ as *mut std::os::raw::c_void);
         }
     }

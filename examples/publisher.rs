@@ -1,13 +1,11 @@
 use std::ffi::CStr;
-use std::io;
-use std::io::Write;
 use std::mem::size_of;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::bail;
 use aeron_client_rs::client::Client;
 use aeron_client_rs::context::{Context, ErrorHandler, OnNewPublicationHandler};
-use aeron_client_rs::publication::Error;
+use aeron_client_rs::publication::{Error};
 
 fn nanos_since_epoch() -> i64 {
     SystemTime::now()
@@ -23,7 +21,6 @@ pub struct DefaultErrorHandler {
 impl ErrorHandler for DefaultErrorHandler {
     fn on_error(&self, code: i32, msg: &CStr) {
         eprintln!("Caught error [code={}, msg={:?}]", code, msg);
-        io::stderr().flush();
     }
 }
 
@@ -33,7 +30,6 @@ pub struct DefaultOnNewPublicationHandler {
 impl OnNewPublicationHandler for DefaultOnNewPublicationHandler {
     fn handle(&self, channel: &CStr, stream_id: i32, session_id: i32, correlation_id: i64) {
         println!("Registered new publication on channel={:?}, streamId={}, sessionId={}, correlationId={}", channel, stream_id, session_id, correlation_id);
-        io::stdout().flush();
     }
 }
 

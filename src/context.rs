@@ -2,20 +2,17 @@ use std::ffi::CStr;
 use std::ptr::null_mut;
 use anyhow::bail;
 
-unsafe extern "C" fn error_handler<T: ErrorHandler>(clientd: *mut ::std::os::raw::c_void, errcode: std::os::raw::c_int, message: *const ::std::os::raw::c_char) {
-    // trampoline
+unsafe extern "C" fn error_handler_trampoline<T: ErrorHandler>(clientd: *mut ::std::os::raw::c_void, errcode: std::os::raw::c_int, message: *const ::std::os::raw::c_char) {
     let handler = clientd as *mut T;
     (*handler).on_error(errcode, CStr::from_ptr(message));
 }
 
-unsafe extern "C" fn on_new_subscription_handler<T: OnNewSubscriptionHandler>(clientd: *mut std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_subscription_t, channel: *const std::os::raw::c_char, stream_id: i32, correlation_id: i64) {
-    // trampoline
+unsafe extern "C" fn on_new_subscription_handler_trampoline<T: OnNewSubscriptionHandler>(clientd: *mut std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_subscription_t, channel: *const std::os::raw::c_char, stream_id: i32, correlation_id: i64) {
     let handler = clientd as *mut T;
     (*handler).handle(CStr::from_ptr(channel), stream_id, correlation_id);
 }
 
-unsafe extern "C" fn on_new_publication_handler<T: OnNewPublicationHandler>(clientd: *mut ::std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_publication_t, channel: *const ::std::os::raw::c_char, stream_id: i32, session_id: i32, correlation_id: i64) {
-    // trampoline
+unsafe extern "C" fn on_new_publication_handler_trampoline<T: OnNewPublicationHandler>(clientd: *mut ::std::os::raw::c_void, async_: *mut libaeron_sys::aeron_async_add_publication_t, channel: *const ::std::os::raw::c_char, stream_id: i32, session_id: i32, correlation_id: i64) {
     let handler = clientd as *mut T;
     (*handler).handle(CStr::from_ptr(channel), stream_id, session_id, correlation_id);
 }
@@ -94,7 +91,7 @@ impl Context {
         unsafe {
             if libaeron_sys::aeron_context_set_error_handler(
                 self.ptr,
-                Some(error_handler::<T>),
+                Some(error_handler_trampoline::<T>),
                 &mut handler as *mut _ as *mut std::os::raw::c_void
             ) < 0
             {
@@ -114,7 +111,7 @@ impl Context {
         unsafe {
             if libaeron_sys::aeron_context_set_on_new_subscription(
                 self.ptr,
-                Some(on_new_subscription_handler::<T>),
+                Some(on_new_subscription_handler_trampoline::<T>),
                 &mut handler as *mut _ as *mut std::os::raw::c_void,
             ) < 0
             {
@@ -134,7 +131,7 @@ impl Context {
         unsafe {
             if libaeron_sys::aeron_context_set_on_new_publication(
                 self.ptr,
-                Some(on_new_publication_handler::<T>),
+                Some(on_new_publication_handler_trampoline::<T>),
                 &mut handler as *mut _ as *mut std::os::raw::c_void,
             ) < 0
             {

@@ -34,6 +34,33 @@ impl BufferClaim {
         &mut self.claim
     }
 
+    pub fn set_header_type(&mut self, header_type: i16) -> anyhow::Result<()> {
+        if self.claim.frame_header.is_null() {
+            bail!("Frame header is null");
+        }
+        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
+        frame.type_ = header_type;
+        Ok(())
+    }
+
+    pub fn set_reserved_value(&mut self, value: i64) -> anyhow::Result<()> {
+        if self.claim.frame_header.is_null() {
+            bail!("Frame header is null");
+        }
+        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
+        frame.reserved_value = value;
+        Ok(())
+    }
+
+    pub fn set_flags(&mut self, flags: u8) -> anyhow::Result<()> {
+        if self.claim.frame_header.is_null() {
+            bail!("Frame header is null");
+        }
+        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
+        frame.flags = flags;
+        Ok(())
+    }
+
     pub fn as_mut_slice(&self) -> &mut [u8] {
         unsafe {
             slice::from_raw_parts_mut(self.claim.data, self.claim.length)

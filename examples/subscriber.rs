@@ -84,7 +84,9 @@ fn main() -> anyhow::Result<()> {
     loop {
         client.poll()?;
         match client.find_subscription(registration_id)? {
-            Some(subscription) => subscription.poll(&assembler.processor(), 10)?,
+            Some(subscription) => {
+                subscription.poll(&assembler.processor(), 10)?
+            },
             None => continue
         };
     }

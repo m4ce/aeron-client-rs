@@ -105,7 +105,7 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn find_publication(&mut self, registration_id: i64) -> anyhow::Result<Option<&mut Publication>> {
+    pub fn find_publication(&mut self, registration_id: i64) -> anyhow::Result<Option<&Publication>> {
         if let Some(publication) = self.publications.get_mut(&registration_id) {
             if publication.is_ready() {
                 return Ok(Some(publication));
@@ -134,7 +134,7 @@ impl<'a> Client<'a> {
     pub fn find_exclusive_publication(
         &mut self,
         registration_id: i64,
-    ) -> anyhow::Result<Option<&mut ExclusivePublication>> {
+    ) -> anyhow::Result<Option<&ExclusivePublication>> {
         if let Some(exclusive_publication) = self.exclusive_publications.get_mut(&registration_id) {
             if exclusive_publication.is_ready() {
                 return Ok(Some(exclusive_publication));

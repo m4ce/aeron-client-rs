@@ -4,8 +4,10 @@ use std::io::Write;
 use std::mem::size_of;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use anyhow::bail;
 use aeron_client_rs::client::Client;
 use aeron_client_rs::context::{Context, ErrorHandler, OnNewPublicationHandler};
+use aeron_client_rs::publication::Error;
 
 fn nanos_since_epoch() -> i64 {
     SystemTime::now()
@@ -56,10 +58,26 @@ fn main() -> anyhow::Result<()> {
             }
         }
         if publication.is_connected() {
-            let mut buffer_claim = publication.try_claim(size_of::<i64>())?;
-            buffer_claim.as_mut_slice().copy_from_slice(&i64::to_le_bytes(nanos_since_epoch()));
-            buffer_claim.commit()?;
-            sleep(Duration::from_millis(1000));
+            let foo: Result<(), Error> = match publication.try_claim(size_of::<i64>()) {
+                Ok(mut buffer_claim) => {
+                    buffer_claim.as_mut_slice().copy_from_slice(&i64::to_le_bytes(nanos_since_epoch()));
+                    buffer_claim.commit()?;
+                    sleep(Duration::from_millis(1000));
+                    Ok(())
+                }
+                Err(e) => {
+                    match e {
+                        Error::BackPressured => {
+                            println!("Got back-pressured, retrying ...");
+                            Ok(())
+                        }
+                        _ => {
+                            bail!(e)
+                        }
+                    }
+                }
+            };
+            foo?;
         }
     }
     // Ok(())

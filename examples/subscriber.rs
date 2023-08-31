@@ -1,13 +1,17 @@
 use std::ffi::CStr;
 use std::io;
 use std::io::Write;
-use aeron_client_rs::client::{AeronImage, Client, Context, ErrorHandler, FragmentAssembler, FragmentHandler, OnAvailableImageHandler, OnNewPublication, OnNewSubscription, OnUnavailableImageHandler};
+use aeron_client_rs::client::{Client, OnAvailableImageHandler, OnUnavailableImageHandler};
+use aeron_client_rs::context::{Context, ErrorHandler, OnNewSubscriptionHandler};
+use aeron_client_rs::fragment_assembler::FragmentAssembler;
+use aeron_client_rs::fragment_processor::FragmentHandler;
+use aeron_client_rs::image::Image;
 
 pub struct DefaultOnAvailableImageHandler {
 }
 
 impl OnAvailableImageHandler for DefaultOnAvailableImageHandler {
-    fn handle(&self, registration_id: i64, image: AeronImage) {
+    fn handle(&self, registration_id: i64, image: Image) {
         println!("Image has become available [sessionId={}]", image.session_id());
     }
 }
@@ -16,7 +20,7 @@ pub struct DefaultOnUnAvailableImageHandler {
 }
 
 impl OnUnavailableImageHandler for DefaultOnUnAvailableImageHandler {
-    fn handle(&self, registration_id: i64, image: AeronImage) {
+    fn handle(&self, registration_id: i64, image: Image) {
         println!("Image has become unavailable [sessionId={}]", image.session_id());
     }
 }
@@ -26,7 +30,7 @@ pub struct DefaultFragmentHandler {
 
 impl FragmentHandler for DefaultFragmentHandler {
     fn on_fragment(&self, data: &[u8], _header: &libaeron_sys::aeron_header_t) {
-        println!("Received fragment: {}", data.len());
+        println!("Received fragment: [value={}, len={}]", i64::from_le_bytes(data[0..8].try_into().unwrap()), data.len());
     }
 }
 
@@ -43,7 +47,7 @@ impl ErrorHandler for DefaultErrorHandler {
 pub struct DefaultOnNewSubscriptionHandler {
 }
 
-impl OnNewSubscription for DefaultOnNewSubscriptionHandler {
+impl OnNewSubscriptionHandler for DefaultOnNewSubscriptionHandler {
     fn handle(&self, channel: &CStr, stream_id: i32, correlation_id: i64) {
         println!("Registered new subscription on channel={:?}, streamId={}, correlationId={}", channel, stream_id, correlation_id);
         io::stdout().flush();
@@ -63,6 +67,7 @@ fn main() -> anyhow::Result<()> {
     let on_available_image_handler = DefaultOnAvailableImageHandler {};
     let on_unavailable_image_handler = DefaultOnUnAvailableImageHandler {};
     let registration_id = client.async_add_subscription("aeron:ipc".into(), 1, &on_available_image_handler, &on_unavailable_image_handler)?;
+    println!("registration id: {}", registration_id);
     let fragment_handler = DefaultFragmentHandler{};
     let assembler = FragmentAssembler::new(&fragment_handler)?;
     // let processor = DefaultFragmentProcessor::new(&fragment_handler);

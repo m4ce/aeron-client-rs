@@ -4,7 +4,8 @@ use std::io::Write;
 use std::mem::size_of;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use aeron_client_rs::client::{Client, Context, ErrorHandler, OnNewPublication};
+use aeron_client_rs::client::Client;
+use aeron_client_rs::context::{Context, ErrorHandler, OnNewPublicationHandler};
 
 fn nanos_since_epoch() -> i64 {
     SystemTime::now()
@@ -27,7 +28,7 @@ impl ErrorHandler for DefaultErrorHandler {
 pub struct DefaultOnNewPublicationHandler {
 }
 
-impl OnNewPublication for DefaultOnNewPublicationHandler {
+impl OnNewPublicationHandler for DefaultOnNewPublicationHandler {
     fn handle(&self, channel: &CStr, stream_id: i32, session_id: i32, correlation_id: i64) {
         println!("Registered new publication on channel={:?}, streamId={}, sessionId={}, correlationId={}", channel, stream_id, session_id, correlation_id);
         io::stdout().flush();
@@ -45,6 +46,7 @@ fn main() -> anyhow::Result<()> {
     let mut client = Client::new(&context)?;
     println!("client id: {}", client.client_id());
     let registration_id = client.async_add_publication("aeron:ipc".into(), 1)?;
+    println!("registration id: {}", registration_id);
     loop {
         client.poll()?;
         let publication = client.find_publication(registration_id).unwrap();
@@ -60,6 +62,5 @@ fn main() -> anyhow::Result<()> {
             sleep(Duration::from_millis(1000));
         }
     }
-    // sleep(Duration::from_secs(10));
-    Ok(())
+    // Ok(())
 }

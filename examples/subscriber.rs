@@ -8,7 +8,7 @@ use std::ffi::CStr;
 pub struct DefaultOnAvailableImageHandler {}
 
 impl OnAvailableImageHandler for DefaultOnAvailableImageHandler {
-    fn handle(&self, registration_id: i64, image: Image) {
+    fn handle(&self, registration_id: i64, image: &Image) {
         println!(
             "Image has become available [sessionId={}]",
             image.session_id()
@@ -19,7 +19,7 @@ impl OnAvailableImageHandler for DefaultOnAvailableImageHandler {
 pub struct DefaultOnUnAvailableImageHandler {}
 
 impl OnUnavailableImageHandler for DefaultOnUnAvailableImageHandler {
-    fn handle(&self, registration_id: i64, image: Image) {
+    fn handle(&self, registration_id: i64, image: &Image) {
         println!(
             "Image has become unavailable [sessionId={}]",
             image.session_id()

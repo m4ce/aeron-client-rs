@@ -10,20 +10,22 @@ use crate::subscription::Subscription;
 
 unsafe extern "C" fn on_unavailable_image_handler_trampoline<T: OnUnavailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     let handler = clientd as *mut T;
-    (*handler).handle(registration_id, Image::new(image, null_mut()));
+    let img = Image::new(image, null_mut());
+    (*handler).handle(registration_id, &img);
 }
 
 unsafe extern "C" fn on_available_image_handler_trampoline<T: OnAvailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     let handler = clientd as *mut T;
-    (*handler).handle(registration_id, Image::new(image, null_mut()));
+    let img = Image::new(image, null_mut());
+    (*handler).handle(registration_id, &img);
 }
 
 pub trait OnAvailableImageHandler {
-    fn handle(&self, registration_id: i64, image: Image);
+    fn handle(&self, registration_id: i64, image: &Image);
 }
 
 pub trait OnUnavailableImageHandler {
-    fn handle(&self, registration_id: i64, image: Image);
+    fn handle(&self, registration_id: i64, image: &Image);
 }
 
 pub struct Client<'a> {

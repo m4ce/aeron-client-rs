@@ -4,6 +4,7 @@ use aeron_client_rs::fragment_assembler::FragmentAssembler;
 use aeron_client_rs::fragment_processor::FragmentHandler;
 use aeron_client_rs::image::Image;
 use std::ffi::CStr;
+use aeron_client_rs::header::Header;
 
 pub struct DefaultOnAvailableImageHandler {}
 
@@ -30,12 +31,14 @@ impl OnUnavailableImageHandler for DefaultOnUnAvailableImageHandler {
 pub struct DefaultFragmentHandler {}
 
 impl FragmentHandler for DefaultFragmentHandler {
-    fn on_fragment(&mut self, data: &[u8], header: &libaeron_sys::aeron_header_values_t) {
+    fn on_fragment(&mut self, data: &[u8], header: &Header) {
         println!(
-            "Received fragment: [value={}, len={}, sessionId={}]",
+            "Received fragment: [value={}, len={}, sessionId={}, streamId={}, reservedValue={}]",
             i64::from_le_bytes(data[0..8].try_into().unwrap()),
             data.len(),
-            header.frame.session_id
+            header.session_id(),
+            header.stream_id(),
+            header.reserved_value()
         );
     }
 }

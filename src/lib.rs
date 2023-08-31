@@ -10,3 +10,4 @@ pub mod fragment_processor;
 pub mod image;
 pub mod publication;
 pub mod subscription;
+pub mod header;

@@ -53,6 +53,7 @@ fn main() -> anyhow::Result<()> {
                     let x: Result<(), Error> = match publication.try_claim(size_of::<i64>()) {
                         Ok(mut buffer_claim) => {
                             buffer_claim.as_mut_slice().copy_from_slice(&i64::to_le_bytes(nanos_since_epoch()));
+                            buffer_claim.set_reserved_value(100)?;
                             buffer_claim.commit()?;
                             sleep(Duration::from_millis(1000));
                             Ok(())

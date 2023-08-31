@@ -38,8 +38,10 @@ impl BufferClaim {
         if self.claim.frame_header.is_null() {
             bail!("Frame header is null");
         }
-        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
-        frame.type_ = header_type;
+        unsafe {
+            let frame = self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct;
+            (*frame).type_ = header_type;
+        }
         Ok(())
     }
 
@@ -47,8 +49,10 @@ impl BufferClaim {
         if self.claim.frame_header.is_null() {
             bail!("Frame header is null");
         }
-        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
-        frame.reserved_value = value;
+        unsafe {
+            let frame = self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct;
+            (*frame).reserved_value = value;
+        }
         Ok(())
     }
 
@@ -56,8 +60,10 @@ impl BufferClaim {
         if self.claim.frame_header.is_null() {
             bail!("Frame header is null");
         }
-        let frame = unsafe { &mut *(self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct) };
-        frame.flags = flags;
+        unsafe {
+            let frame = self.claim.frame_header as *mut libaeron_sys::aeron_header_values_frame_stct;
+            (*frame).flags = flags;
+        }
         Ok(())
     }
 

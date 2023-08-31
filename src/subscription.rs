@@ -5,6 +5,12 @@ use crate::destination::{Destination, DestinationReadiness};
 use crate::fragment_processor::FragmentProcessor;
 use crate::image::Image;
 
+unsafe extern "C" fn image_handler<T: Fn(&Image)>(image: *mut libaeron_sys::aeron_image_t, clientd: *mut std::os::raw::c_void) {
+    // trampoline
+    let handler = clientd as *mut T;
+    (*handler)(&Image::new(image, null_mut()));
+}
+
 struct SubscriptionAsyncDestination {}
 
 impl DestinationReadiness for SubscriptionAsyncDestination {
@@ -121,16 +127,35 @@ impl Subscription {
 
     pub fn image_at_index(&self, index: usize) -> anyhow::Result<Image> {
         unsafe {
-            let x = libaeron_sys::aeron_subscription_image_at_index(self.ptr, index);
-            if x.is_null() {
+            let ptr = libaeron_sys::aeron_subscription_image_at_index(self.ptr, index);
+            if ptr.is_null() {
                 bail!(format!("No image exists at index {}", index));
             }
-            Ok(Image::wrap(x))
+            Ok(Image::new(ptr, self.ptr))
         }
     }
 
     pub fn image_count(&self) -> i32 {
         unsafe { libaeron_sys::aeron_subscription_image_count(self.ptr) }
+    }
+
+    pub fn image_by_session_id(&self, session_id: i32) -> Option<Image> {
+        unsafe {
+            let ptr = libaeron_sys::aeron_subscription_image_by_session_id(self.ptr, session_id);
+            if ptr.is_null() {
+                None
+            } else {
+                Some(Image::new(ptr, self.ptr))
+            }
+        }
+    }
+
+    pub fn for_each_image<T>(&self, mut handler: &T) where T: Fn(&Image) {
+        unsafe {
+            libaeron_sys::aeron_subscription_for_each_image(self.ptr,
+                                                            Some(image_handler::<T>),
+                                                            &mut handler as *mut _ as *mut std::os::raw::c_void);
+        }
     }
 
     pub fn poll<T>(&self, fragment_processor: &T, fragment_limit: usize) -> anyhow::Result<i32>

@@ -29,14 +29,12 @@ pub struct DefaultFragmentHandler {
 }
 
 impl FragmentHandler for DefaultFragmentHandler {
-    fn on_fragment(&self, data: &[u8], _header: &libaeron_sys::aeron_header_t) {
+    fn on_fragment(&mut self, data: &[u8], _header: &libaeron_sys::aeron_header_t) {
         println!("Received fragment: [value={}, len={}]", i64::from_le_bytes(data[0..8].try_into().unwrap()), data.len());
     }
 }
 
-pub struct DefaultErrorHandler {
-
-}
+pub struct DefaultErrorHandler {}
 
 impl ErrorHandler for DefaultErrorHandler {
     fn on_error(&self, code: i32, msg: &CStr) {

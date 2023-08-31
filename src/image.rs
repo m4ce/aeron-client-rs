@@ -1,10 +1,11 @@
 pub struct Image {
     ptr: *mut libaeron_sys::aeron_image_t,
+    subscription_ptr: *mut libaeron_sys::aeron_subscription_t
 }
 
 impl Image {
-    pub(super) fn wrap(ptr: *mut libaeron_sys::aeron_image_t) -> Self {
-        Self { ptr }
+    pub(super) fn new(ptr: *mut libaeron_sys::aeron_image_t, subscription_ptr: *mut libaeron_sys::aeron_subscription_t) -> Self {
+        Self { ptr, subscription_ptr }
     }
 
     pub fn session_id(&self) -> i32 {
@@ -28,6 +29,16 @@ impl Image {
     pub fn is_closed(&self) -> bool {
         unsafe {
             libaeron_sys::aeron_image_is_closed(self.ptr)
+        }
+    }
+}
+
+impl Drop for Image {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.subscription_ptr.is_null() {
+                libaeron_sys::aeron_subscription_image_release(self.subscription_ptr, self.ptr);
+            }
         }
     }
 }

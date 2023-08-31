@@ -9,6 +9,7 @@ dependencies = [
  "agrona-rs",
  "anyhow",
  "libaeron-sys",
+ "thiserror",
 ]
 
 [[package]]

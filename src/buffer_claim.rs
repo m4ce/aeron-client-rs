@@ -1,6 +1,6 @@
 use std::ptr::null_mut;
-use std::slice;
 use std::ffi::{CStr};
+use std::slice;
 use anyhow::bail;
 
 pub struct BufferClaim {
@@ -80,8 +80,14 @@ impl BufferClaim {
 
 impl Drop for BufferClaim {
     fn drop(&mut self) {
-        if !self.committed {
-            self.abort().expect("failed to abort claim");
+        if !self.committed && !self.aborted {
+            if !self.claim.data.is_null() {
+                unsafe {
+                    if libaeron_sys::aeron_buffer_claim_abort(&mut self.claim) < 0 {
+                        eprintln!("aeron_buffer_claim_abort: {:?}", CStr::from_ptr(libaeron_sys::aeron_errmsg()));
+                    }
+                }
+            }
         }
     }
 }

@@ -1,8 +1,26 @@
 use std::ffi::CStr;
 use std::ptr::null_mut;
 use anyhow::bail;
+use thiserror::Error;
 use crate::buffer_claim::BufferClaim;
 use crate::destination::{Destination, DestinationReadiness};
+use crate::publication::Error::{AdminAction, BackPressured, Closed, GenericError, MaxPositionExceeded, NotConnected};
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Publication error: {0:?}")]
+    GenericError(&'static CStr),
+    #[error("The publication is not yet connected to a subscriber.")]
+    NotConnected,
+    #[error("The offer failed due to an administration action and should be retried.")]
+    AdminAction,
+    #[error("The offer failed due to back pressure from the subscribers preventing further transmission.")]
+    BackPressured,
+    #[error("The offer failed due to reaching the maximum position of the stream given term buffer length times the total possible number of terms.")]
+    MaxPositionExceeded,
+    #[error("The Publication has been closed and should no longer be used.")]
+    Closed
+}
 
 struct PublicationAsyncDestination {}
 
@@ -82,36 +100,47 @@ impl Publication {
         unsafe { libaeron_sys::aeron_publication_session_id(self.ptr) }
     }
 
-    pub fn offer(&self, data: &[u8]) -> anyhow::Result<()> {
+    pub fn offer(&self, data: &[u8]) -> Result<(), Error> {
         unsafe {
-            if libaeron_sys::aeron_publication_offer(
+            let pos = libaeron_sys::aeron_publication_offer(
                 self.ptr,
                 data.as_ptr(),
                 data.len(),
                 None,
                 null_mut(),
-            ) < 0
-            {
-                bail!(format!(
-                    "aeron_publication_offer: {:?}",
-                    CStr::from_ptr(libaeron_sys::aeron_errmsg())
-                ));
+            );
+            if pos >= 0 {
+                Ok(())
+            } else {
+                match pos as i32 {
+                    libaeron_sys::AERON_PUBLICATION_NOT_CONNECTED => Err(NotConnected),
+                    libaeron_sys::AERON_PUBLICATION_ADMIN_ACTION => Err(AdminAction),
+                    libaeron_sys::AERON_PUBLICATION_BACK_PRESSURED => Err(BackPressured),
+                    libaeron_sys::AERON_PUBLICATION_CLOSED => Err(Closed),
+                    libaeron_sys::AERON_PUBLICATION_MAX_POSITION_EXCEEDED => Err(MaxPositionExceeded),
+                    _ => Err(GenericError(CStr::from_ptr(libaeron_sys::aeron_errmsg())))
+                }
             }
         }
-        Ok(())
     }
 
-    pub fn try_claim(&self, length: usize) -> anyhow::Result<BufferClaim> {
+    pub fn try_claim(&self, length: usize) -> Result<BufferClaim, Error> {
         let mut claim = BufferClaim::new();
         unsafe {
-            if libaeron_sys::aeron_publication_try_claim(self.ptr, length, claim.claim()) < 0 {
-                bail!(format!(
-                    "aeron_publication_try_claim: {:?}",
-                    CStr::from_ptr(libaeron_sys::aeron_errmsg())
-                ));
+            let pos = libaeron_sys::aeron_publication_try_claim(self.ptr, length, claim.claim());
+            if pos >= 0 {
+                Ok(claim)
+            } else {
+                match pos as i32 {
+                    libaeron_sys::AERON_PUBLICATION_NOT_CONNECTED => Err(NotConnected),
+                    libaeron_sys::AERON_PUBLICATION_ADMIN_ACTION => Err(AdminAction),
+                    libaeron_sys::AERON_PUBLICATION_BACK_PRESSURED => Err(BackPressured),
+                    libaeron_sys::AERON_PUBLICATION_CLOSED => Err(Closed),
+                    libaeron_sys::AERON_PUBLICATION_MAX_POSITION_EXCEEDED => Err(MaxPositionExceeded),
+                    _ => Err(GenericError(CStr::from_ptr(libaeron_sys::aeron_errmsg())))
+                }
             }
         }
-        Ok(claim)
     }
 
     pub fn async_add_destination(

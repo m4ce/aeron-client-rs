@@ -1,7 +1,7 @@
 use std::ptr::null_mut;
 
 pub trait DestinationReadiness {
-    fn ready(async_: *mut libaeron_sys::aeron_async_destination_t) -> anyhow::Result<bool>;
+    fn ready(ptr: *mut libaeron_sys::aeron_async_destination_t) -> anyhow::Result<bool>;
 }
 
 pub struct Destination {

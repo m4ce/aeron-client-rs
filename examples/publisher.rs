@@ -45,11 +45,11 @@ fn main() -> anyhow::Result<()> {
     context.set_new_publication_handler(&on_new_publication_handler)?;
     let mut client = Client::new(&context)?;
     println!("client id: {}", client.client_id());
-    let registration_id = client.async_add_publication("aeron:ipc".into(), 1)?;
+    let registration_id = client.async_add_exclusive_publication("aeron:ipc".into(), 1)?;
     println!("registration id: {}", registration_id);
     loop {
         client.poll()?;
-        let publication = client.find_publication(registration_id).unwrap();
+        let publication = client.find_exclusive_publication(registration_id).unwrap();
         if let Ok(value) = publication.poll_ready() {
             if !value {
                 continue;

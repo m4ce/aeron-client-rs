@@ -11,13 +11,13 @@ use crate::subscription::Subscription;
 unsafe extern "C" fn on_unavailable_image_handler<T: OnUnavailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     // trampoline
     let handler = clientd as *mut T;
-    (*handler).handle(registration_id, Image::wrap(image));
+    (*handler).handle(registration_id, Image::new(image, null_mut()));
 }
 
 unsafe extern "C" fn on_available_image_handler<T: OnAvailableImageHandler>(clientd: *mut std::os::raw::c_void, registration_id: i64, subscription: *mut libaeron_sys::aeron_subscription_t, image: *mut libaeron_sys::aeron_image_t) {
     // trampoline
     let handler = clientd as *mut T;
-    (*handler).handle(registration_id, Image::wrap(image));
+    (*handler).handle(registration_id, Image::new(image, null_mut()));
 }
 
 pub trait OnAvailableImageHandler {

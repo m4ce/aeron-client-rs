@@ -12,8 +12,10 @@ pub(super) unsafe extern "C" fn fragment_handler<T: FragmentHandler>(
     (*handler).on_fragment(slice::from_raw_parts(buffer, length), &*header);
 }
 
+// enable this once trait aliases are in stable - https://github.com/rust-lang/rust/issues/41517
+// pub trait FragmentHandler = FnMut(&[u8], &libaeron_sys::aeron_header_t);
 pub trait FragmentHandler {
-    fn on_fragment(&self, _data: &[u8], _header: &libaeron_sys::aeron_header_t);
+    fn on_fragment(&mut self, _data: &[u8], _header: &libaeron_sys::aeron_header_t);
 }
 
 pub trait FragmentProcessor {

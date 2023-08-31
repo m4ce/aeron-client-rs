@@ -3,10 +3,6 @@ use std::ptr::null_mut;
 use anyhow::bail;
 use crate::fragment_processor::{fragment_handler_trampoline, FragmentHandler, FragmentProcessor};
 
-// unsafe extern "C" fn fragment_assembler_handler_trampoline(clientd: *mut std::os::raw::c_void, buffer: *const u8, length: usize, header: *mut libaeron_sys::aeron_header_t) {
-//     libaeron_sys::aeron_fragment_assembler_handler(clientd, buffer, length, header);
-// }
-
 pub struct FragmentAssemblerProcessor {
     inner: libaeron_sys::aeron_fragment_handler_t,
     clientd: *mut libaeron_sys::aeron_fragment_assembler_t

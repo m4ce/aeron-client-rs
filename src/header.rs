@@ -23,6 +23,7 @@ impl Header {
                 position_bits_to_shift: 0
             }
         };
+        // todo: this seems silly
         unsafe {
             if libaeron_sys::aeron_header_values(ptr, &mut instance.inner) < 0 {
                 bail!("aeron_header_values: failed to retrieve header values");

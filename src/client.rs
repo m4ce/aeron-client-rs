@@ -221,9 +221,8 @@ impl<'a> Client<'a> {
                     CStr::from_ptr(libaeron_sys::aeron_errmsg())
                 ));
             }
-            registration_id = libaeron_sys::aeron_async_add_publication_get_registration_id(
-                async_publication.async_ptr(),
-            );
+            assert!(!async_publication.async_ptr().is_null());
+            registration_id = (*async_publication.async_ptr()).registration_id;
             self.publications.insert(registration_id, async_publication);
         }
         Ok(registration_id)
@@ -266,10 +265,8 @@ impl<'a> Client<'a> {
                     CStr::from_ptr(libaeron_sys::aeron_errmsg())
                 ));
             }
-            registration_id =
-                libaeron_sys::aeron_async_add_exclusive_exclusive_publication_get_registration_id(
-                    async_exclusive_publication.async_ptr(),
-                );
+            assert!(!async_exclusive_publication.async_ptr().is_null());
+            registration_id = (*async_exclusive_publication.async_ptr()).registration_id;
             self.exclusive_publications
                 .insert(registration_id, async_exclusive_publication);
         }
@@ -326,9 +323,8 @@ impl<'a> Client<'a> {
                     CStr::from_ptr(libaeron_sys::aeron_errmsg())
                 ));
             }
-            let registration_id = libaeron_sys::aeron_async_add_subscription_get_registration_id(
-                async_subscription.async_ptr(),
-            );
+            assert!(!async_subscription.async_ptr().is_null());
+            let registration_id = (*async_subscription.async_ptr()).registration_id;
             self.subscriptions
                 .insert(registration_id, async_subscription);
             Ok(registration_id)

@@ -10,7 +10,7 @@ pub(super) unsafe extern "C" fn fragment_handler_trampoline<T: FragmentHandler>(
 ) {
     // trampoline
     let handler = clientd as *mut T;
-    let hdr = Header::new(header).expect("");
+    let hdr = Header::new(header);
     (*handler).on_fragment(slice::from_raw_parts(buffer, length), &hdr);
 }
 
